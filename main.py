@@ -8,7 +8,7 @@ from argparse import ArgumentParser, BooleanOptionalAction
 DenseVector: TypeAlias = List[int]                # each 'int' is a coefficient in the vector
 DenseMatrix: TypeAlias = List[DenseVector]        # each 'DenseVector' is a row in the matrix
 SparseVector: TypeAlias = Dict[int, int]          # each 'int' as key is the position and each 'int' as value is the coefficient
-SparseMatrix: TypeAlias = Dict[int, DenseVector]  # each 'int' is the position of the column and the 'DenseVector' has the column values in the matrix
+SparseMatrix: TypeAlias = Dict[int, SparseVector] # each 'int' is the position of the column and the 'DenseVector' has the column values in the matrix
 
 # ========================================================================================================================================================
 
@@ -534,12 +534,10 @@ def matrix_by_sparse_vector_mod_m(M: SparseMatrix, v: SparseVector, m: int) -> S
   # Compute the product between the sparse matrix and the sparse vector
   u = {}
   for j, c in v.items():
-    for i in range(Mr):
-      a = M[j][i]
-      if a:
-        if i not in u:
-          u[i] = 0
-        u[i] = (u[i] + c * a) % m
+    for i, a in M[j].items():
+      if i not in u:
+        u[i] = 0
+      u[i] = (u[i] + c * a) % m
   # Return the sparse vector
   return u
 
@@ -587,19 +585,23 @@ def matrix_kroneker_product_part_mod_m(M: DenseMatrix, C: DenseVector, k: int, m
   for i in range(Mr):
     for j in range(Mc):
       if j not in PC:
-        PC[j] = []
-      PC[j].append(M[i][j])
+        PC[j] = {}
+      a = M[i][j]
+      if a:
+        PC[j][i] = a
   # Compute the necessary Kronecker product steps
   for a in range(k - 1):
     NC = {}
     Tr = Mr**(a + 1)
     Tc = Mc**(a + 1)
-    for i in range(Tr * Mr):
-      for j in set([ idx[a] for idx in KC ]):
-        v = (PC[j % Tc][i % Tr] * M[i // Tr][j // Tc]) % m
-        if j not in NC:
-          NC[j] = []
-        NC[j].append(v)
+    for j in set([ idx[a] for idx in KC ]):
+      for i in range(Tr * Mr):
+        if (i % Tr) in PC[j % Tc]:
+          v = (PC[j % Tc][i % Tr] * M[i // Tr][j // Tc]) % m
+          if v:
+            if j not in NC:
+              NC[j] = {}
+            NC[j][i] = v
     PC = NC
   # Return the sparse Kronecker product matrix
   return PC
@@ -1042,7 +1044,7 @@ def normalize_multivariate_polynomial(p: Polynomial, w: int, dense: bool, debug:
     MFK = matrix_kroneker_product_part_mod_m(MF, v, k, 2**w)
 
     if debug:
-      print(f"MFK[{len(list(MFK.values())[0])}]: {MFK}")
+      print(f"MFK[{len(list(MFK.values())[0])}][{len(MFK)}]: {MFK}")
 
     u = matrix_by_sparse_vector_mod_m(MFK, v, 2**w)
 
@@ -1072,7 +1074,7 @@ def normalize_multivariate_polynomial(p: Polynomial, w: int, dense: bool, debug:
     MCK = matrix_kroneker_product_part_mod_m(MC, u, k, 2**w)
 
     if debug:
-      print(f"MCK[{len(list(MCK.values())[0])}]: {MCK}")
+      print(f"MCK[{len(list(MCK.values())[0])}][{len(MCK)}]: {MCK}")
 
     v = matrix_by_sparse_vector_mod_m(MCK, u, 2**w)
 
@@ -1177,7 +1179,7 @@ def equivalent_multivariate_polynomial(p: Polynomial, w: int, t: int, dense: boo
     MFK = matrix_kroneker_product_part_mod_m(MF, v, k, 2**w)
 
     if debug:
-      print(f"MFK[{len(list(MFK.values())[0])}]: {MFK}")
+      print(f"MFK[{len(list(MFK.values())[0])}][{len(MFK)}]: {MFK}")
 
     u = matrix_by_sparse_vector_mod_m(MFK, v, 2**w)
 
@@ -1207,7 +1209,7 @@ def equivalent_multivariate_polynomial(p: Polynomial, w: int, t: int, dense: boo
     MCK = matrix_kroneker_product_part_mod_m(MC, u, k, 2**w)
 
     if debug:
-      print(f"MCK[{len(list(MCK.values())[0])}]: {MCK}")
+      print(f"MCK[{len(list(MCK.values())[0])}][{len(MCK)}]: {MCK}")
 
     v = matrix_by_sparse_vector_mod_m(MCK, u, 2**w)
 
